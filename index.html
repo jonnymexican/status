@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Live status of every app in the fleet." />
+    <title>fleet status</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(165deg, #0e1116 0%, #0c0f13 55%, #0a0c0f 100%);
+        color: #e6edf3;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 3rem 1.1rem 4rem;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.9rem;
+        background: linear-gradient(90deg, #7ee787, #5cd6c9);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .sub { color: #7d8590; margin: 0.5rem 0 2rem; text-align: center; }
+      .fleet { width: 100%; max-width: 34rem; display: flex; flex-direction: column; gap: 0.6rem; }
+      a.service {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        text-decoration: none;
+        color: inherit;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        transition: border-color 120ms ease;
+      }
+      a.service:hover { border-color: #5cd6c9; }
+      .dot {
+        width: 0.7rem; height: 0.7rem; border-radius: 999px;
+        background: #6e7681; flex-shrink: 0;
+      }
+      .dot.checking { background: #d29922; animation: pulse 1s infinite; }
+      .dot.up { background: #3fb950; }
+      .dot.down { background: #f85149; }
+      @keyframes pulse { 50% { opacity: 0.4; } }
+      .svc-name { font-weight: 700; }
+      .svc-url {
+        color: #7d8590; font-size: 0.78rem;
+        font-family: Consolas, 'Cascadia Mono', monospace;
+        word-break: break-all;
+      }
+      .svc-latency { margin-left: auto; color: #7d8590; font-size: 0.85rem; white-space: nowrap; }
+      footer { margin-top: 2.4rem; color: #484f58; font-size: 0.82rem; text-align: center; }
+      code { color: #8b949e; }
+    </style>
+  </head>
+  <body>
+    <h1>fleet status</h1>
+    <p class="sub">
+      Live probes, run from <em>your</em> browser. 🟢 answers, 🔴 no answer within 5s.<br />
+      <code>network-tools</code> (server edition) only has a URL if it's been deployed to Render.
+    </p>
+
+    <main class="fleet" id="fleet"></main>
+
+    <footer>
+      Checks are opaque (no-cors) fetches: a green dot means the server answered anything at all —
+      exactly what an uptime monitor can see from outside.
+    </footer>
+
+    <script>
+      const FLEET = [
+        { name: '🎖️ FriendCredit™', url: 'https://jonnymexican.github.io/brocredit/' },
+        { name: '✅ adhdTracker', url: 'https://jonnymexican.github.io/adhdTracker/' },
+        { name: '🛠️ network-tools lite', url: 'https://jonnymexican.github.io/ntlite/' },
+        { name: '💬 Get Inspired', url: 'https://jonnymexican.github.io/test/' },
+        { name: '🔗 the apps (landing)', url: 'https://jonnymexican.github.io/links/' },
+        { name: '🧭 vicinityGo', url: 'https://jonnymexican.github.io/test/vicinitygo/' },
+        { name: '🧩 hub', url: 'https://jonnymexican.github.io/test/hub.html' },
+      ];
+
+      const fleet = document.getElementById('fleet');
+
+      for (const svc of FLEET) {
+        const row = document.createElement('a');
+        row.className = 'service';
+        row.href = svc.url;
+        row.target = '_blank';
+        row.rel = 'noopener';
+        row.innerHTML =
+          '<span class="dot checking" id="dot"></span>' +
+          '<span><span class="svc-name">' + svc.name + '</span><br />' +
+          '<span class="svc-url">' + svc.url.replace('https://', '') + '</span></span>' +
+          '<span class="svc-latency" id="lat">…</span>';
+        fleet.appendChild(row);
+
+        probe(svc.url).then(function (r) {
+          row.querySelector('#dot').className = 'dot ' + (r.up ? 'up' : 'down');
+          row.querySelector('#lat').textContent = r.up ? r.ms + ' ms' : 'no answer';
+        });
+      }
+
+      function probe(url) {
+        const started = performance.now();
+        const controller = new AbortController();
+        const timer = setTimeout(function () { controller.abort(); }, 5000);
+        return fetch(url, { mode: 'no-cors', signal: controller.signal })
+          .then(function () {
+            clearTimeout(timer);
+            return { up: true, ms: Math.round(performance.now() - started) };
+          })
+          .catch(function () {
+            clearTimeout(timer);
+            return { up: false, ms: null };
+          });
+      }
+    </script>
+  </body>
+</html>
