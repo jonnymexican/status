@@ -95,11 +95,13 @@
     </footer>
 
     <script>
+      const WAKE_MS = 45000; // keep retrying a sleeping service for this long
+
       const FLEET = [
         { name: '🎖️ FriendCredit™', url: 'https://jonnymexican.github.io/brocredit/' },
         { name: '✅ adhdTracker', url: 'https://jonnymexican.github.io/adhdTracker/' },
         { name: '🛠️ network-tools lite', url: 'https://jonnymexican.github.io/ntlite/' },
-        { name: '🛰️ network-tools (full)', url: 'https://network-tools-m3gz.onrender.com/api/health' },
+        { name: '🛰️ network-tools (full)', url: 'https://network-tools-m3gz.onrender.com/api/health', wakes: true },
         { name: '💬 Get Inspired', url: 'https://jonnymexican.github.io/test/' },
         { name: '🔗 the apps (landing)', url: 'https://jonnymexican.github.io/links/' },
         { name: '🧭 vicinityGo', url: 'https://jonnymexican.github.io/test/vicinitygo/' },
@@ -133,18 +135,44 @@
           const lat = entry.el.querySelector('.svc-latency');
           dot.className = 'dot checking';
           lat.textContent = '…';
-          probe(entry.svc.url).then(function (r) {
-            dot.className = 'dot ' + (r.up ? 'up' : 'down');
-            lat.textContent = r.up ? r.ms + ' ms' : 'no answer';
-          }).finally(function () {
+
+          const done = function () {
             pending -= 1;
             if (pending === 0) {
               btn.disabled = false;
               const time = new Date().toLocaleTimeString();
               document.getElementById('last-checked').textContent = 'Last checked ' + time + '.';
             }
+          };
+
+          const show = function (r) {
+            dot.className = 'dot ' + (r.up ? 'up' : 'down');
+            lat.textContent = r.up ? r.ms + ' ms' : (r.wasWaking ? 'still asleep — click the row to wake it' : 'no answer');
+          };
+
+          const check = entry.svc.wakes ? wakeAwareProbe : probe;
+          check(entry.svc.url).then(function (r) {
+            show(r);
+            done();
           });
         }
+      }
+
+      /** For services that sleep: if the first try fails, keep retrying until
+        * WAKE_MS has passed. A service that eventually answers shows as up
+        * (with the true wake latency); one that never does reports "asleep". */
+      function wakeAwareProbe(url) {
+        const started = Date.now();
+        function attempt() {
+          return probe(url).then(function (r) {
+            if (r.up) return { up: true, ms: r.ms, wasWaking: true };
+            if (Date.now() - started >= WAKE_MS) return { up: false, wasWaking: true };
+            return new Promise(function (resolve) {
+              setTimeout(function () { resolve(attempt()); }, 4000);
+            });
+          });
+        }
+        return attempt();
       }
 
       document.getElementById('refresh').addEventListener('click', checkAll);
